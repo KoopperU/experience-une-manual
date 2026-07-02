@@ -74,17 +74,36 @@ document.addEventListener('DOMContentLoaded', () => {
             try {
                 const bookContainer = document.getElementById('book');
                 
-                // Función auxiliar para verificar si una imagen existe
-                const checkImg = url => new Promise(resolve => {
-                    const img = new Image();
-                    img.onload = () => resolve({exists: true});
-                    img.onerror = () => resolve({exists: false});
-                    img.src = url;
-                });
+                // Función auxiliar robusta para verificar múltiples extensiones
+                const checkMultipleExts = (baseName) => {
+                    return new Promise((resolve) => {
+                        const exts = ['.png', '.jpg', '.jpeg', '.webp'];
+                        let pending = exts.length;
+                        let found = false;
+
+                        exts.forEach(ext => {
+                            const url = `./assets/img/${baseName}${ext}`;
+                            const img = new Image();
+                            img.onload = () => {
+                                if (!found) {
+                                    found = true;
+                                    resolve({ exists: true, url: url });
+                                }
+                            };
+                            img.onerror = () => {
+                                pending--;
+                                if (pending === 0 && !found) {
+                                    resolve({ exists: false, url: '' });
+                                }
+                            };
+                            img.src = url;
+                        });
+                    });
+                };
 
                 const [inicioData, finalData] = await Promise.all([
-                    checkImg('./assets/img/inicio.jpg'),
-                    checkImg('./assets/img/final.jpg')
+                    checkMultipleExts('inicio'),
+                    checkMultipleExts('final')
                 ]);
 
                 // Buscar páginas interiores (del 2 al 100)
@@ -92,13 +111,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const promises = [];
                 for(let i = 2; i <= MAX_PAGES; i++) {
                     promises.push(
-                        new Promise((resolve) => {
-                            const img = new Image();
-                            const url = `./assets/img/${i}.jpg`;
-                            img.onload = () => resolve({index: i, exists: true, url: url});
-                            img.onerror = () => resolve({index: i, exists: false});
-                            img.src = url;
-                        })
+                        checkMultipleExts(i).then(res => ({
+                            index: i,
+                            exists: res.exists,
+                            url: res.url
+                        }))
                     );
                 }
                 
@@ -109,7 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // PORTADA
                 validPages.push({ 
-                    url: inicioData.exists ? './assets/img/inicio.jpg' : 'https://via.placeholder.com/500x707/2b2b2b/FFFFFF?text=INICIO.JPG+FALTA'
+                    url: inicioData.exists ? inicioData.url : 'https://via.placeholder.com/500x707/2b2b2b/FFFFFF?text=INICIO.PNG+FALTA'
                 });
 
                 // INTERIORES
@@ -122,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // CONTRAPORTADA
                 validPages.push({ 
-                    url: finalData.exists ? './assets/img/final.jpg' : 'https://via.placeholder.com/500x707/2b2b2b/FFFFFF?text=FINAL.JPG+FALTA'
+                    url: finalData.exists ? finalData.url : 'https://via.placeholder.com/500x707/2b2b2b/FFFFFF?text=FINAL.PNG+FALTA'
                 });
 
                 // RECONSTRUIR HTML
@@ -143,6 +160,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     div.appendChild(img);
                     bookContainer.appendChild(div);
                 });
+
+                // Lógica de Impresión (Spreads / Pliegos)
+                const btnPrint = document.getElementById('btn-print');
+                if (btnPrint) {
+                    btnPrint.addEventListener('click', () => {
+                        // --- COMPAGINACIÓN DE REVISTA REAL (BOOKLET IMPOSITION) ---
+                        // Para poder engrapar en el centro, el total de páginas de impresión debe ser múltiplo de 4.
+                        let printPages = [...validPages];
+                        
+                        // Añadir páginas en blanco ANTES de la contraportada hasta que sea múltiplo de 4
+                        while (printPages.length % 4 !== 0) {
+                            const blankPage = { url: 'https://via.placeholder.com/500x707/FFFFFF/FFFFFF?text=' };
+                            printPages.splice(printPages.length - 1, 0, blankPage);
+                        }
+
+                        // Algoritmo de Compaginación
+                        const totalSheets = printPages.length / 2;
+                        let spreads = [];
+
+                        for (let i = 0; i < totalSheets; i++) {
+                            let left, right;
+                            if (i % 2 === 0) {
+                                left = printPages[printPages.length - 1 - i];
+                                right = printPages[i];
+                            } else {
+                                left = printPages[i];
+                                right = printPages[printPages.length - 1 - i];
+                            }
+                            spreads.push([left, right]);
+                        }
+
+                        // Enviar los pliegos calculados a localStorage para que print.html los recoja
+                        localStorage.setItem('printSpreads', JSON.stringify(spreads));
+                        
+                        // Abrir la ventana de impresión como un proceso completamente independiente (noopener, noreferrer)
+                        // Esto evita que el cuadro de diálogo de impresión congele la pestaña de la revista digital.
+                        window.open('./print.html', '_blank', 'noopener,noreferrer');
+                    });
+                }
 
                 // CARGAR EN STPAGEFLIP
                 pageFlip.loadFromHTML(document.querySelectorAll('.page'));
