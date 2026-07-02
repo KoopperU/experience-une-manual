@@ -56,11 +56,9 @@ body {
 
 /* App Container */
 #app-container {
-    width: 100%;
-    height: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    width: 100vw;
+    height: 100vh;
+    display: block; /* Quitar flexbox para que no pelee con StPageFlip */
     position: relative;
 }
 
@@ -71,6 +69,52 @@ body {
     height: 100%;
     pointer-events: none; /* Dejar pasar los clicks al libro */
     z-index: 10;
+}
+
+/* Controles Superiores */
+.top-controls {
+    position: absolute;
+    top: 25px;
+    right: 25px;
+    display: flex;
+    gap: 15px;
+    pointer-events: auto; /* Permitir interacción */
+    z-index: 20;
+}
+
+.glass-pill {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 30px;
+    padding: 8px 18px;
+    color: white;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.nav-btn-small {
+    padding: 8px;
+    cursor: pointer;
+    width: 40px;
+    height: 40px;
+}
+
+.nav-btn-small svg {
+    width: 18px;
+    height: 18px;
+}
+
+.nav-btn-small:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.4), inset 0 0 10px rgba(255,255,255,0.2);
 }
 
 .nav-btn {
@@ -88,14 +132,44 @@ body {
     align-items: center;
     cursor: pointer;
     color: white;
-    transition: all 0.3s ease;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     backdrop-filter: blur(5px);
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
 }
 
 .nav-btn:hover {
-    background: rgba(255, 255, 255, 0.25);
-    transform: translateY(-50%) scale(1.1);
-    box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.3);
+    transform: translateY(-50%) scale(1.15);
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.4), inset 0 0 10px rgba(255,255,255,0.2);
+}
+
+/* Tooltip de ayuda visual */
+.hint-text {
+    position: absolute;
+    bottom: 5%;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.9);
+    font-size: 14px;
+    letter-spacing: 1px;
+    background: rgba(0,0,0,0.6);
+    padding: 12px 24px;
+    border-radius: 30px;
+    pointer-events: none;
+    z-index: 20;
+    transition: opacity 1s ease;
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.15);
+    animation: bounceHint 3s infinite ease-in-out;
+}
+.hint-text span {
+    opacity: 0.6;
+    font-size: 12px;
+}
+
+@keyframes bounceHint {
+    0%, 100% { transform: translateX(-50%) translateY(0); }
+    50% { transform: translateX(-50%) translateY(-6px); }
 }
 
 #btn-prev {
@@ -108,14 +182,31 @@ body {
 
 /* Book Wrapper */
 .book-wrapper {
-    position: relative;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     /* Sombras para dar efecto de volumen 3D al libro cerrado o abierto */
     filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.6)) drop-shadow(0 5px 15px rgba(0, 0, 0, 0.4));
 }
 
+#book-scaler {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transform-origin: center center;
+    /* Transición de 0.6s para igualar la velocidad a la que se pasa la página */
+    transition: transform 0.6s cubic-bezier(0.645, 0.045, 0.355, 1);
+}
+
 #book {
     position: relative;
-    transition: margin 0.5s ease; /* Transición suave si usamos margins para centrar */
+    /* Añadimos transición a 'transform' porque StPageFlip la usa para auto-centrar */
+    transition: transform 0.6s ease, margin 0.6s ease; 
 }
 
 /* Pages Styling */
@@ -123,24 +214,58 @@ body {
     background-color: #fff;
     overflow: hidden;
     position: relative;
-    /* Sombra interior para darle relieve al borde de la página */
-    box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
 }
 
-/* Efecto de curvatura del lomo (spine effect) en páginas impares y pares */
-.page.--left {
-    box-shadow: inset -20px 0 30px -10px rgba(0,0,0,0.15), inset 0 0 10px rgba(0,0,0,0.05);
+/* Efecto de Hundimiento y Separación (Línea del Medio / Gutter) */
+/* Hojas Izquierdas (Páginas Pares: 2, 4...) */
+.page:nth-child(even)::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0; /* Sombra en el borde derecho (centro del libro) */
+    bottom: 0;
+    width: 100px;
+    background: linear-gradient(to right, 
+        rgba(0,0,0,0) 0%, 
+        rgba(0,0,0,0.02) 60%, 
+        rgba(0,0,0,0.25) 90%, 
+        rgba(0,0,0,0.7) 100%
+    );
+    pointer-events: none;
+    z-index: 10;
 }
 
-.page.--right {
-    box-shadow: inset 20px 0 30px -10px rgba(0,0,0,0.15), inset 0 0 10px rgba(0,0,0,0.05);
+/* Hojas Derechas (Páginas Impares: 1, 3...) */
+.page:nth-child(odd)::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0; /* Sombra en el borde izquierdo (centro del libro) */
+    bottom: 0;
+    width: 100px;
+    background: linear-gradient(to left, 
+        rgba(0,0,0,0) 0%, 
+        rgba(0,0,0,0.02) 60%, 
+        rgba(0,0,0,0.25) 90%, 
+        rgba(0,0,0,0.7) 100%
+    );
+    pointer-events: none;
+    z-index: 10;
+}
+
+/* Sutil brillo blanco de fricción en la mismísima línea de doblez */
+.page:nth-child(even) {
+    box-shadow: inset -1px 0 2px rgba(255,255,255,0.4), inset 0 0 10px rgba(0,0,0,0.05);
+}
+.page:nth-child(odd) {
+    box-shadow: inset 1px 0 2px rgba(255,255,255,0.4), inset 0 0 10px rgba(0,0,0,0.05);
 }
 
 /* Imágenes dentro de la página */
 .page-img {
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: fill; /* fill en lugar de cover para que el logo no se recorte, solo se estire sutilmente al papel */
     pointer-events: none; /* Evitar el ghost drag de la imagen nativa */
 }
 
